@@ -8,150 +8,113 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotComm
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from telegram.constants import ParseMode
 
-# Loglama
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Çevre değişkenleri
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
+# BU KISIM ÖNEMLİ: Değişkenleri DOĞRUDAN al
+BOT_TOKEN = os.environ["BOT_TOKEN"]
+WEBHOOK_URL = os.environ["WEBHOOK_URL"]
 PORT = int(os.environ.get("PORT", 8080))
 
-# Veri dosyası
-DATA_FILE = "/tmp/xenithnet_data.json"
+veriler = {"kullanicilar": {}, "mesaj_sayisi": 0}
 
-def load_data():
-    try:
-        with open(DATA_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return {"users": {}, "messages": 0}
-
-def save_data(data):
-    try:
-        with open(DATA_FILE, "w") as f:
-            json.dump(data, f)
-    except:
-        pass
-
-data = load_data()
-
-# Flask uygulaması
 app = Flask(__name__)
 
 @app.route('/')
-def home():
+def ana_sayfa():
     return "XenithNet Bot Running"
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
-        update = Update.de_json(request.get_json(force=True), bot_app.bot)
+        update = Update.de_json(request.get_json(force=True), telegram_bot.bot)
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(bot_app.process_update(update))
+        loop.run_until_complete(telegram_bot.process_update(update))
         loop.close()
     except Exception as e:
         logger.error(f"Hata: {e}")
     return "OK"
 
-# Bot komutları
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        user = update.effective_user
-        uid = str(user.id)
-        
-        if uid not in data["users"]:
-            data["users"][uid] = {
-                "name": user.first_name,
-                "username": user.username or "yok",
-                "rank": "Vatandas",
-                "balance": 0,
-                "joined": datetime.now().strftime("%d.%m.%Y")
-            }
-            save_data(data)
-        
-        u = data["users"][uid]
-        text = f"⚡ *XENITHNET IMPARATORLUGU*\n\n🏰 Hos geldin *{u['name']}*!\n🎖 Rutbe: *{u['rank']}*\n💰 Bakiye: *{u['balance']} XNC*\n\n/hizmetler - Hizmetler\n/bakiye - Bakiye"
-        
-        buttons = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🛒 Hizmetler", callback_data="services"),
-             InlineKeyboardButton("💰 Bakiye", callback_data="balance")]
-        ])
-        
-        data["messages"] += 1
-        save_data(data)
-        
-        await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=buttons)
-    except Exception as e:
-        logger.error(f"Start hatasi: {e}")
-
-async def services(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = """
-🛒 *XENITHNET HIZMETLERI*
-
-🎮 *Ghost Gaming*
-• Basic - 500 XNC
-• Pro - 2,500 XNC
-• Ultimate - 5,000 XNC
-
-💻 *Code Arsenal*
-• Script - 1,000 XNC
-• Exploit - 15,000 XNC
-
-🛡 *Phantom Shield*
-• Basic - 2,500 XNC
-• Enterprise - 25,000 XNC
-
-📱 *App Forge*
-• Custom - 5,000 XNC
-• Multi - 15,000 XNC
-"""
-    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
-
-async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = str(update.effective_user.id)
-    u = data["users"].get(uid)
-    if u:
-        text = f"💰 Bakiye: *{u['balance']} XNC*\n🎖 Rutbe: *{u['rank']}*"
-    else:
-        text = "/start ile kaydol"
-    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
-
-async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = f"📊 Uye: {len(data['users'])}\n💬 Mesaj: {data['messages']}\n🟢 Aktif"
-    await update.message.reply_text(text)
-
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    cmd = query.data
+    kullanici = update.effective_user
+    uid = str(kullanici.id)
     
-    if cmd == "services":
-        await services(update, context)
-    elif cmd == "balance":
-        await balance(update, context)
+    if uid not in veriler["kullanicilar"]:
+        veriler["kullanicilar"][uid] = {
+            "ad": kullanici.first_name,
+            "kullanici_adi": kullanici.username or "yok",
+            "rutbe": "Vatandas",
+            "bakiye": 0,
+            "katilim": datetime.now().isoformat()
+        }
+    
+    k = veriler["kullanicilar"][uid]
+    mesaj = f"⚡ *XENITHNET IMPARATORLUGU*\n\n🏰 Hos geldin *{k['ad']}*!\n🎖 Rutbe: *{k['rutbe']}*\n💰 Bakiye: *{k['bakiye']} XNC*\n\n/hizmetler - Hizmetler\n/bakiye - Bakiye"
+    
+    tuslar = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🛒 Hizmetler", callback_data="hizmetler"),
+         InlineKeyboardButton("💰 Bakiye", callback_data="bakiye")],
+        [InlineKeyboardButton("🏰 Hakkinda", callback_data="hakkinda")]
+    ])
+    veriler["mesaj_sayisi"] += 1
+    await update.message.reply_text(mesaj, parse_mode=ParseMode.MARKDOWN, reply_markup=tuslar)
 
-# Bot başlatma
-bot_app = None
+async def hizmetler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    mesaj = """🛒 *HIZMETLER*\n\n🎮 Ghost Gaming\n💻 Code Arsenal\n🛡 Phantom Shield\n📱 App Forge"""
+    await update.message.reply_text(mesaj, parse_mode=ParseMode.MARKDOWN)
+
+async def bakiye(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = str(update.effective_user.id)
+    k = veriler["kullanicilar"].get(uid)
+    if k:
+        mesaj = f"💰 Bakiye: *{k['bakiye']} XNC*\n🎖 Rutbe: *{k['rutbe']}*"
+    else:
+        mesaj = "/start ile kaydol"
+    await update.message.reply_text(mesaj, parse_mode=ParseMode.MARKDOWN)
+
+async def istatistik(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    mesaj = f"📊 Uye: {len(veriler['kullanicilar'])}\n💬 Mesaj: {veriler['mesaj_sayisi']}\n🟢 Aktif"
+    await update.message.reply_text(mesaj)
+
+async def buton_isleyici(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    sorgu = update.callback_query
+    await sorgu.answer()
+    veri = sorgu.data
+    
+    if veri == "hizmetler":
+        await hizmetler(update, context)
+    elif veri == "bakiye":
+        await bakiye(update, context)
+    elif veri == "hakkinda":
+        mesaj = "🏰 XenithNet Imparatorlugu\n⚡ Dijital cag"
+        tus = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Geri", callback_data="geri")]])
+        await sorgu.edit_message_text(mesaj, reply_markup=tus)
+    elif veri == "geri":
+        uid = str(sorgu.from_user.id)
+        k = veriler["kullanicilar"].get(uid, {"rutbe": "Vatandas", "bakiye": 0})
+        mesaj = f"🏰 Ana Menu\n🎖 {k['rutbe']}\n💰 {k['bakiye']} XNC"
+        tus = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🛒 Hizmetler", callback_data="hizmetler"),
+             InlineKeyboardButton("💰 Bakiye", callback_data="bakiye")],
+            [InlineKeyboardButton("🏰 Hakkinda", callback_data="hakkinda")]
+        ])
+        await sorgu.edit_message_text(mesaj, reply_markup=tus)
+
+telegram_bot = None
 
 async def main():
-    global bot_app
+    global telegram_bot
+    logger.info(f"Token: {BOT_TOKEN[:10]}... Webhook: {WEBHOOK_URL}")
     
-    if not BOT_TOKEN:
-        logger.error("BOT_TOKEN bulunamadi!")
-        return
+    telegram_bot = Application.builder().token(BOT_TOKEN).build()
+    telegram_bot.add_handler(CommandHandler("start", start))
+    telegram_bot.add_handler(CommandHandler("hizmetler", hizmetler))
+    telegram_bot.add_handler(CommandHandler("bakiye", bakiye))
+    telegram_bot.add_handler(CommandHandler("istatistik", istatistik))
+    telegram_bot.add_handler(CallbackQueryHandler(buton_isleyici))
     
-    bot_app = Application.builder().token(BOT_TOKEN).build()
-    bot_app.add_handler(CommandHandler("start", start))
-    bot_app.add_handler(CommandHandler("hizmetler", services))
-    bot_app.add_handler(CommandHandler("bakiye", balance))
-    bot_app.add_handler(CommandHandler("istatistik", stats))
-    bot_app.add_handler(CallbackQueryHandler(button_handler))
-    
-    if WEBHOOK_URL:
-        await bot_app.bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
-        logger.info(f"Webhook kuruldu: {WEBHOOK_URL}/webhook")
+    await telegram_bot.bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
     
     commands = [
         BotCommand("start", "Imparatorluga katil"),
@@ -159,16 +122,16 @@ async def main():
         BotCommand("bakiye", "Bakiye"),
         BotCommand("istatistik", "Istatistik"),
     ]
-    await bot_app.bot.set_my_commands(commands)
-    logger.info("Bot hazir!")
+    await telegram_bot.bot.set_my_commands(commands)
+    logger.info("✅ Bot hazir!")
 
 if __name__ == "__main__":
-    logger.info("XenithNet baslatiliyor...")
+    logger.info("Baslatiliyor...")
     
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(main())
     loop.close()
     
-    logger.info(f"Web sunucu baslatiliyor (Port: {PORT})")
+    logger.info(f"Web sunucu: Port {PORT}")
     app.run(host="0.0.0.0", port=PORT)
