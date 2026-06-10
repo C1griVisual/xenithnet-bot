@@ -1,36 +1,37 @@
 import os
 import sys
-import json
 import logging
 import asyncio
-from datetime import datetime
 from flask import Flask, request
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram import Update, BotCommand
+from telegram.ext import Application, CommandHandler, ContextTypes
 from telegram.constants import ParseMode
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 logger = logging.getLogger(__name__)
 
-# DEĞİŞKENLERİ ZORLA OKU - HATA VARSA DUR
-try:
-    BOT_TOKEN = os.environ["BOT_TOKEN"]
-    WEBHOOK_URL = os.environ["WEBHOOK_URL"]
-    logger.info(f"Token bulundu: {BOT_TOKEN[:8]}...")
-    logger.info(f"Webhook: {WEBHOOK_URL}")
-except KeyError as e:
-    logger.error(f"EKSIK DEGISKEN: {e}")
-    logger.error("Railway Variables'a BOT_TOKEN ve WEBHOOK_URL ekle!")
+# DEĞİŞKENLERİ YUMUŞAK OKU
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")
+PORT = int(os.environ.get("PORT", 10000))
+
+if not BOT_TOKEN:
+    logger.error("BOT_TOKEN bulunamadi! Render Environment Variables'a ekle.")
     sys.exit(1)
 
-PORT = int(os.environ.get("PORT", "8080"))
-DATA = {"users": {}, "msgs": 0}
+if not WEBHOOK_URL:
+    logger.error("WEBHOOK_URL bulunamadi!")
+    sys.exit(1)
+
+logger.info(f"Token baslangic: {BOT_TOKEN[:8]}...")
+logger.info(f"Webhook URL: {WEBHOOK_URL}")
+logger.info(f"Port: {PORT}")
 
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "XenithNet Online"
+    return "XenithNet Bot Running"
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -46,23 +47,17 @@ def webhook():
     return "OK"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    u = update.effective_user
-    uid = str(u.id)
-    if uid not in DATA["users"]:
-        DATA["users"][uid] = {"name": u.first_name, "bal": 0, "rank": "Vatandas"}
-    k = DATA["users"][uid]
-    txt = f"⚡ *XENITHNET*\n\n🏰 {k['name']}\n💰 {k['bal']} XNC\n🎖 {k['rank']}\n\n/hizmetler - Hizmetler"
-    btn = InlineKeyboardMarkup([[InlineKeyboardButton("🛒 Hizmetler", callback_data="hizmetler")]])
-    await update.message.reply_text(txt, parse_mode=ParseMode.MARKDOWN, reply_markup=btn)
+    user = update.effective_user
+    await update.message.reply_text(
+        f"⚡ *XENITHNET IMPARATORLUGU*\n\n🏰 Hos geldin *{user.first_name}*!\n\n/hizmetler - Hizmetler",
+        parse_mode=ParseMode.MARKDOWN
+    )
 
 async def hizmetler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🎮 Ghost Gaming\n💻 Code Arsenal\n🛡 Phantom Shield\n📱 App Forge")
-
-async def buton(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    await q.answer()
-    if q.data == "hizmetler":
-        await q.edit_message_text("🎮 Ghost Gaming\n💻 Code Arsenal\n🛡 Phantom Shield\n📱 App Forge")
+    await update.message.reply_text(
+        "🛒 *HIZMETLER*\n\n🎮 Ghost Gaming\n💻 Code Arsenal\n🛡 Phantom Shield\n📱 App Forge",
+        parse_mode=ParseMode.MARKDOWN
+    )
 
 BOT = None
 
@@ -71,20 +66,20 @@ async def main():
     BOT = Application.builder().token(BOT_TOKEN).build()
     BOT.add_handler(CommandHandler("start", start))
     BOT.add_handler(CommandHandler("hizmetler", hizmetler))
-    BOT.add_handler(CallbackQueryHandler(buton))
     
-    webhook_url = f"{WEBHOOK_URL}/webhook"
-    await BOT.bot.set_webhook(url=webhook_url)
-    logger.info(f"✅ Webhook kuruldu: {webhook_url}")
+    await BOT.bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
+    logger.info("✅ Webhook kuruldu!")
     
-    cmds = [BotCommand("start", "Baslat"), BotCommand("hizmetler", "Hizmetler")]
-    await BOT.bot.set_my_commands(cmds)
-    logger.info("✅ BOT HAZIR! Telegram'da /start yaz!")
+    await BOT.bot.set_my_commands([
+        BotCommand("start", "Imparatorluga katil"),
+        BotCommand("hizmetler", "Hizmetler"),
+    ])
+    logger.info("✅ BOT HAZIR! Telegramda /start yaz!")
 
 if __name__ == "__main__":
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(main())
     loop.close()
-    logger.info(f"🌐 Port: {PORT}")
+    logger.info(f"🌐 Sunucu baslatiliyor... Port: {PORT}")
     app.run(host="0.0.0.0", port=PORT)
